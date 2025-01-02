@@ -1,16 +1,9 @@
-using sep3.orders.Model;
+﻿using Microsoft.AspNetCore.Mvc;
+using sep3.DTO.Order;
 using sep3.orders.Services;
-using sep3.orders.Infrastructure;
-using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace sep3.orders.Controllers;
 
-[Route("[controller]")]
 [ApiController]
 public class OrderController : Controller
 {
@@ -18,94 +11,46 @@ public class OrderController : Controller
 
     public OrderController(IOrderRepository orderRepository)
     {
-        this._orderRepository = orderRepository;
+        _orderRepository = orderRepository;
     }
 
     [HttpGet]
-    [Route("Orders")]
-    public async Task<IActionResult> GetOrders()
+    [Route(("api/orders"))]
+    public async Task<IActionResult> GetOrdersAsync()
     {
-        try
-        {
-            List<Order> orders = await _orderRepository.GetOrdersAsync();
-            return Content(JsonConvert.SerializeObject(orders, Formatting.None,
-                new JsonSerializerSettings()
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                    PreserveReferencesHandling = PreserveReferencesHandling.Objects
-                }));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var orders = await _orderRepository.GetAllOrdersAsync();
+        return Ok(orders);
     }
-
-    [HttpGet]
-    [Route("Orders/{id:int}")]
-    public async Task<IActionResult> GetOrder(int? id)
-    {
-        try
-        {
-            Order order = await _orderRepository.GetOrderAsync(id);
-            return Content(JsonConvert.SerializeObject(order, Formatting.None,
-                new JsonSerializerSettings()
-                {
-                    ReferenceLoopHandling = ReferenceLoopHandling.Ignore,
-                    PreserveReferencesHandling = PreserveReferencesHandling.Objects
-                }));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
-    }
-
+    
     [HttpPost]
-    [Route("Orders")]
-    public async Task<IActionResult> CreateOrder(DateTimeOffset? createDate, int? customerId, double? price)
+    [Route("api/orders")]
+    public async Task<IActionResult> CreateOrderAsync([FromBody] CreateOrderDTO order)
     {
-        createDate = DateTimeOffset.UtcNow;
-        try
-        {
-            Order order = await _orderRepository.CreateOrderAsync(createDate, customerId, price);
-            return Content(order.Id.ToString());
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex.Message);
-            return BadRequest(ex.Message);
-        }
+        Console.WriteLine("Creating order");
+        var createdOrder = await _orderRepository.CreateOrderAsync(order);
+        return Ok(createdOrder.Id.ToString());
     }
 
-    [HttpPatch]
-    [Route("Orders")]
-    public async Task<IActionResult> UpdateOrder(int? id, DateTimeOffset? createdAt, int? customerId, double? price)
+    [HttpPut]
+    [Route("api/orders/{orderId}")]
+    public async Task<IActionResult> UpdateOrderAsync([FromQuery] int statusId, [FromRoute] int orderId)
     {
-        try
-        {
-            await _orderRepository.UpdateOrderAsync(id, createdAt, customerId, price);
-            return Ok();
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        var updatedOrder = await _orderRepository.UpdateOrderStatusASync(orderId, statusId);
+        return Ok(updatedOrder);
     }
-
-    [HttpDelete]
-    [Route("Orders/{id:int}")]
-    public async Task<IActionResult> DeleteOrder(int? id)
+    
+    [HttpGet("api/customers/{customerId}/orders")]
+    public async Task<IActionResult> GetOrdersAsync(int customerId)
     {
-        try
-        {
-            await _orderRepository.DeleteOrderAsync(id);
-            return Ok();
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(410, ex.Message);
-        }
+        var orders = await _orderRepository.GetOrderAsync(customerId);
+        return Ok(orders);
+    }
+    
+    [HttpGet("api/orders/{orderId}/status")]
+    public async Task<IActionResult> GetOrderStatusAsync(int orderId)
+    {
+        var status = await _orderRepository.GetOrderStatusAsync(orderId);
+        return Ok(status);
     }
     
 }

@@ -1,0 +1,258 @@
+﻿@page "/admin/update-variant"
+@using sep3.DTO.Product
+@using web.Model
+@using web.Services
+@inject IProductService ProductService
+@inject IVariantService VariantService
+@inject IArchiveStatusService ArchiveStatusService
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+
+<div class="container my-5">
+    <h1 class="mb-4">Admin Panel - Update Variant</h1>
+    <!-- Purchase Popup -->
+    <div aria-live="polite" aria-atomic="true" class="position-relative">
+        <div class="toast-container position-fixed bottom-0 end-0 p-3">
+            <div id="cartToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto">Product Notification</strong>
+                    <small class="text-muted">Just now</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+                <div class="toast-body">
+                    Item added to your cart!
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mb-3">
+        <input
+            type="text"
+            class="form-control"
+            placeholder="Search products..."
+            @bind="SearchTerm"
+            @bind:event="oninput"/>
+    </div>
+
+    <table class="table table-striped table-bordered">
+        <thead class="thead-dark">
+        <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Price</th>
+            <th scope="col">Description</th>
+            <th scope="col">Image</th>
+        </tr>
+        </thead>
+        <tbody>
+        @if (_filteredProducts.Any())
+        {
+            @foreach (var product in _filteredProducts)
+            {
+                <tr @onclick="() => OnProductSelected(product)" style="cursor: pointer;">
+                    <td>@product.Name</td>
+                    <td>@product.Price.ToString("C")</td>
+                    <td>@product.Description</td>
+                    <td>
+                        <img src="@product.ImagePath" alt="@product.Name" class="img-thumbnail" style="max-width: 75px;"/>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="4" class="text-center">No products found</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+
+    @if (_selectedProduct != null)
+    {
+        <h2 class="mt-5">Variants for @_selectedProduct.Name</h2>
+        <table class="table table-striped table-bordered">
+            <thead class="thead-dark">
+            <tr>
+                <th scope="col">Variant Id</th>
+                <th scope="col">Variant Material</th>
+                <th scope="col">Variant Size</th>
+                <th scope="col">Variant Stock</th>
+                <th scope="col">Archive Product</th>
+                <th scope="col">Actions</th>
+            </tr>
+            </thead>
+            <tbody>
+            @if (_productVariants != null && _productVariants.Any())
+            {
+                @foreach (var variant in _productVariants)
+                {
+                    <tr>
+                        <td>@variant.Id</td>
+                        <td>
+                            @if (_editableVariant == variant && _editableField == "Material")
+                            {
+                                <input type="text" class="form-control" @bind="variant.Material" @bind:event="oninput"/>
+                            }
+                            else
+                            {
+                                <span @ondblclick="@(() => StartEditing(variant, "Material"))">@variant.Material</span>
+                            }
+                        </td>
+                        <td>
+                            @if (_editableVariant == variant && _editableField == "Size")
+                            {
+                                <input type="text" class="form-control" @bind="variant.Size" @bind:event="oninput"/>
+                            }
+                            else
+                            {
+                                <span @ondblclick="@(() => StartEditing(variant, "Size"))">
+                                    @variant.Size
+                                </span>
+                            }
+                        </td>
+                        <td>
+                            @if (_editableVariant == variant && _editableField == "Stock")
+                            {
+                                <input type="number" class="form-control" @bind="variant.Stock" @bind:event="oninput"/>
+                            }
+                            else
+                            {
+                                <span @ondblclick="@(() => StartEditing(variant, "Stock"))">@variant.Stock</span>
+                            }
+                        </td>
+                        <td>
+                            <select class="form-select form-select-sm" @bind="variant.ArchiveStatus.Id">
+                                <option value="" disabled>Select status</option>
+                                @foreach (var status in _availableStatuses)
+                                {
+                                    <option value="@status.Id">@status.Status</option>
+                                }
+                            </select>
+                        </td>
+                        <td>
+
+                            <button class="btn btn-sm btn-success" @onclick="() => SaveChanges(variant)">Save</button>
+                            <button class="btn btn-sm btn-secondary" @onclick="CancelEditing">Cancel</button>
+
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="5" class="text-center">No variants found</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    }
+
+</div>
+
+
+@code {
+    private List<Product> _products = [];
+    private List<ProductVariant>? _productVariants = [];
+    private List<Product> _filteredProducts = [];
+    private List<ArchiveStatus> _availableStatuses = [];
+    private Product _selectedProduct;
+    private ProductVariant? _editableVariant;
+    private string _editableField = "";
+    private string _searchTerm = string.Empty;
+    private bool statusChanged;
+
+    private string SearchTerm
+    {
+        get => _searchTerm;
+        set
+        {
+            _searchTerm = value;
+            FilterProducts();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _products = await ProductService.GetProductsAsync();
+        _filteredProducts = _products;
+        _availableStatuses = await ArchiveStatusService.GetArchiveStatusesAsync();
+    }
+
+    private void FilterProducts()
+    {
+        if (string.IsNullOrWhiteSpace(_searchTerm))
+        {
+            _filteredProducts = _products;
+        }
+        else
+        {
+            _filteredProducts = _products
+                .Where(p => p.Name.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase) ||
+                            p.Description.Contains(_searchTerm, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private async Task OnProductSelected(Product product)
+    {
+        _selectedProduct = product;
+        _productVariants = await ProductService.GetProductVariantsAsync(product.Id);
+        
+        foreach(var variant in _productVariants)
+        {
+            Console.WriteLine(variant.ArchiveStatus);
+        }
+    }
+
+    private void StartEditing(ProductVariant variant, string field)
+    {
+        _editableVariant = variant;
+        _editableField = field;
+    }
+
+    private void CancelEditing()
+    {
+        _editableVariant = null;
+        _editableField = "";
+    }
+
+    private async Task SaveChanges(ProductVariant variant)
+    {
+        _editableVariant = null;
+        _editableField = "";
+
+        var updatedVariantDTO = new ProductVariantDTO()
+        {
+            Id = variant.Id,
+            Material = variant.Material,
+            Size = variant.Size,
+            Stock = variant.Stock,
+            ArchiveStatusId = variant.ArchiveStatus.Id
+        };
+
+        await VariantService.UpdateProductVariantAsync(variant.Id, updatedVariantDTO);
+
+        
+        _productVariants = await ProductService.GetProductVariantsAsync(_selectedProduct.Id);
+        await JSRuntime.InvokeVoidAsync("showCartToast", $"#{variant.Id} is {GetNameFromStatusId(variant.ArchiveStatus.Id)} with stock: {updatedVariantDTO.Stock}!");
+    }
+    
+
+    private long GetStatusFromName(string statusName)
+    {
+        var status = _availableStatuses?.FirstOrDefault(s => s.Status == statusName);
+        if (status == null)
+        {
+            throw new InvalidOperationException($"Status '{statusName}' not found.");
+        }
+
+        return status.Id;
+    }
+
+    private string GetNameFromStatusId(long statusId)
+    {
+        return _availableStatuses.FirstOrDefault(s => s.Id == statusId)!.Status;
+    }
+
+}
