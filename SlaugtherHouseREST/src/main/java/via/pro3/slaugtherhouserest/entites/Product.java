@@ -23,6 +23,8 @@ public class Product {
     @Enumerated(EnumType.STRING)
     private ProductType productType;
 
+    private String productName;
+
     @ElementCollection
     private List<UUID> trayIds;
 

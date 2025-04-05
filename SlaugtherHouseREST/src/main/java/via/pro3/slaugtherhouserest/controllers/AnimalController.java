@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@RestController // ioc
+@RestController // ioc 
 @RequestMapping("/station1/animals")
 public class AnimalController {
     @Autowired //dependency injection
